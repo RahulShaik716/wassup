@@ -1,13 +1,8 @@
-export type DemoUser = {
-    id: string;
-    name: string;
-  };
-
-  export type ChatMessage = {
-    id: string;
-    chatId: string;
-    text: string;
-    senderId: string;
-    senderName: string;
-    createdAt: string;
-  };
+export type ChatMessage = {
+  id: string;
+  chatId: string;
+  text: string;
+  senderId: string;
+  senderName: string;
+  createdAt: string;
+};

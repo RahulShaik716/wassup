@@ -24,10 +24,19 @@ import cors from 'cors';
     };
   };
 
-  type JoinPayload = {
-    userId: string;
-    name: string;
-  };
+type PublicUser = {
+  id: string;
+  name: string;
+  email?: string;
+  avatarUrl?: string | null;
+};
+
+type JoinPayload = {
+  userId: string;
+  name: string;
+  email?: string;
+  avatarUrl?: string | null;
+};
 
   type ChatJoinPayload = {
     chatId: string;
@@ -95,7 +104,12 @@ import cors from 'cors';
     },
   });
 
-  const users = new Map<string, string>();
+type ConnectedUser = {
+  socketId: string;
+  user: PublicUser;
+};
+
+const users = new Map<string, ConnectedUser>();
   const messagesByChat = new Map<string, ChatMessage[]>();
   const calls = new Map<string, CallRecord>();
   const readyUsersByCall = new Map<string, Set<string>>();
@@ -104,39 +118,60 @@ import cors from 'cors';
     return messagesByChat.get(chatId) ?? [];
   }
 
-  function emitToUser(userId: string, event: string, payload: unknown) {
-    const socketId = users.get(userId);
+function emitToUser(userId: string, event: string, payload: unknown) {
+  const socketId = users.get(userId)?.socketId;
 
-    if (socketId) {
-      io.to(socketId).emit(event, payload);
+  if (socketId) {
+    io.to(socketId).emit(event, payload);
+  }
+}
+
+function getOtherUserId(call: CallRecord, currentUserId: string) {
+  return currentUserId === call.fromUserId ? call.toUserId : call.fromUserId;
+}
+
+function listOnlineUsers() {
+  return Array.from(users.values()).map(({ user }) => user);
+}
+
+
+io.on('connection', (socket) => {
+  console.log('connected', socket.id);
+
+  socket.on('user:join', (payload: JoinPayload, ack?: (response: unknown) => void) => {
+    if (!payload?.userId) {
+      ack?.({ ok: false, error: 'userId is required' });
+      return;
     }
-  }
 
-  function getOtherUserId(call: CallRecord, currentUserId: string) {
-    return currentUserId === call.fromUserId ? call.toUserId : call.fromUserId;
-  }
+    const nextUser: PublicUser = {
+      id: payload.userId,
+      name: payload.name,
+      email: payload.email,
+      avatarUrl: payload.avatarUrl,
+    };
 
-
-  io.on('connection', (socket) => {
-    console.log('connected', socket.id);
-
-    socket.on('user:join', (payload: JoinPayload, ack?: (response: unknown) => void) => {
-      if (!payload?.userId) {
-        ack?.({ ok: false, error: 'userId is required' });
-        return;
-      }
-
-      users.set(payload.userId, socket.id);
-      socket.data.userId = payload.userId;
-      socket.data.name = payload.name;
-
-      ack?.({ ok: true, socketId: socket.id });
-
-      io.emit('presence:update', {
-        userId: payload.userId,
-        isOnline: true,
-      });
+    users.set(payload.userId, {
+      socketId: socket.id,
+      user: nextUser,
     });
+    socket.data.userId = payload.userId;
+    socket.data.name = payload.name;
+
+    ack?.({ ok: true, socketId: socket.id, users: listOnlineUsers() });
+
+    io.emit('presence:update', {
+      user: nextUser,
+      isOnline: true,
+    });
+  });
+
+  socket.on('users:list', (ack?: (response: unknown) => void) => {
+    ack?.({
+      ok: true,
+      users: listOnlineUsers(),
+    });
+  });
 
     socket.on('chat:join', (payload: ChatJoinPayload, ack?: (response: unknown) => void) => {
       if (!payload?.chatId) {
@@ -342,6 +377,7 @@ import cors from 'cors';
       const userId = socket.data.userId as string | undefined;
 
       if (userId) {
+        const disconnectedUser = users.get(userId)?.user;
         users.delete(userId);
 
         for (const call of Array.from(calls.values())) {
@@ -354,16 +390,16 @@ import cors from 'cors';
         }
 
         io.emit('presence:update', {
-          userId,
+          user: disconnectedUser ?? { id: userId, name: socket.data.name as string },
           isOnline: false,
         });
       }
 
-      console.log('disconnected', socket.id);
-    });
+    console.log('disconnected', socket.id);
   });
+});
 
-  httpServer.listen(PORT, '0.0.0.0', () => {
-    console.log(`HTTP: http://localhost:${PORT}`);
-    console.log(`Socket.IO ready on port ${PORT}`);
-  });
+httpServer.listen(PORT, '0.0.0.0', () => {
+  console.log(`HTTP: http://localhost:${PORT}`);
+  console.log(`Socket.IO ready on port ${PORT}`);
+});

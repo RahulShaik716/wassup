@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Text, View } from 'react-native';
 import {
   MediaStream,
@@ -37,6 +37,22 @@ type IceCandidatePayload = {
   };
 };
 
+type PeerConnectionWithLegacyApi = RTCPeerConnection & {
+  addStream?: (stream: MediaStream) => void;
+  onaddstream?: (event: { stream: MediaStream }) => void;
+  onconnectionstatechange?: () => void;
+  onicecandidate?: (event: { candidate: RTCIceCandidate | null }) => void;
+  oniceconnectionstatechange?: () => void;
+  ontrack?: (event: { streams?: MediaStream[]; track: any }) => void;
+};
+
+function toSessionDescriptionInit(payload: SessionDescriptionPayload['sdp']) {
+  return {
+    type: payload.type,
+    sdp: payload.sdp ?? '',
+  };
+}
+
 export default function CallScreen() {
   const { callId } = useLocalSearchParams<{ callId: string }>();
   const { user } = useSession();
@@ -56,37 +72,42 @@ export default function CallScreen() {
 
   const isCaller = currentCall?.fromUserId === user?.id;
   const isVideoCall = currentCall?.mode === 'video';
+  const currentCallId = currentCall?.id;
+  const currentCallMode = currentCall?.mode ?? 'voice';
 
-  const sessionConstraints: any = {
-    mandatory: {
-      OfferToReceiveAudio: true,
-      OfferToReceiveVideo: currentCall?.mode === 'video',
-      VoiceActivityDetection: true,
-    },
-  };
+  const sessionConstraints: any = useMemo(
+    () => ({
+      mandatory: {
+        OfferToReceiveAudio: true,
+        OfferToReceiveVideo: currentCallMode === 'video',
+        VoiceActivityDetection: true,
+      },
+    }),
+    [currentCallMode]
+  );
 
-  async function flushPendingCandidates(peer: RTCPeerConnection) {
+  const flushPendingCandidates = useCallback(async (peer: RTCPeerConnection) => {
     for (const candidate of pendingCandidatesRef.current) {
       await peer.addIceCandidate(new RTCIceCandidate(candidate));
     }
 
     pendingCandidatesRef.current = [];
-  }
+  }, []);
 
-  async function ensurePeerConnection() {
+  const ensurePeerConnection = useCallback(async () => {
     if (peerRef.current) {
       return peerRef.current;
     }
 
-    const peer = createPeerConnection();
+    const peer = createPeerConnection() as PeerConnectionWithLegacyApi;
 
-    peer.onicecandidate = (event) => {
-      if (!event.candidate || !currentCall) {
+    peer.onicecandidate = (event: { candidate: RTCIceCandidate | null }) => {
+      if (!event.candidate || !currentCallId) {
         return;
       }
 
       socket.emit('webrtc:ice-candidate', {
-        callId: currentCall.id,
+        callId: currentCallId,
         candidate: event.candidate,
       });
     };
@@ -99,7 +120,7 @@ export default function CallScreen() {
       setRtcStatus(peer.connectionState ?? peer.iceConnectionState ?? 'unknown');
     };
 
-    peer.ontrack = (event) => {
+    peer.ontrack = (event: { streams?: MediaStream[]; track: any }) => {
       const stream = event.streams?.[0];
 
       if (stream) {
@@ -114,49 +135,41 @@ export default function CallScreen() {
       });
     };
 
-    (
-      peer as RTCPeerConnection & {
-        onaddstream?: (event: { stream: MediaStream }) => void;
-      }
-    ).onaddstream = (event: { stream: MediaStream }) => {
+    peer.onaddstream = (event: { stream: MediaStream }) => {
       if (event.stream) {
         setRemoteStream(event.stream);
       }
     };
 
-    const nextLocalStream = await getLocalMediaStream(currentCall?.mode ?? 'voice');
+    const nextLocalStream = await getLocalMediaStream(currentCallMode);
     localStreamRef.current = nextLocalStream;
     setLocalStream(nextLocalStream);
 
-    const peerWithLegacyStream = peer as RTCPeerConnection & {
-      addStream?: (stream: MediaStream) => void;
-    };
-
-    if (typeof peerWithLegacyStream.addStream === 'function') {
-      peerWithLegacyStream.addStream(nextLocalStream);
+    if (typeof peer.addStream === 'function') {
+      peer.addStream(nextLocalStream);
     } else {
       nextLocalStream.getTracks().forEach((track) => {
         peer.addTrack(track, nextLocalStream);
       });
     }
 
-     if (currentCall?.mode === 'video') {
-    const videoSender = peer.getSenders().find((sender) => sender.track?.kind === 'video');
+    if (currentCallMode === 'video') {
+      const videoSender = peer.getSenders().find((sender) => sender.track?.kind === 'video');
 
-    if (videoSender?.getParameters && videoSender?.setParameters) {
-      const params = videoSender.getParameters();
-      params.encodings ??= [{}];
-      params.encodings[0].maxBitrate = 1_500_000;
-      params.encodings[0].maxFramerate = 30;
-      await videoSender.setParameters(params);
-    }
+      if (videoSender?.getParameters && videoSender?.setParameters) {
+        const params = videoSender.getParameters();
+        params.encodings ??= [{ active: true }];
+        params.encodings[0].maxBitrate = 1_500_000;
+        params.encodings[0].maxFramerate = 30;
+        await videoSender.setParameters(params);
+      }
     }
 
     peerRef.current = peer;
     return peer;
-  }
+  }, [currentCallId, currentCallMode]);
 
-  async function cleanupPeer() {
+  const cleanupPeer = useCallback(async () => {
     try {
       localStreamRef.current?.getTracks().forEach((track) => track.stop());
       peerRef.current?.close();
@@ -174,7 +187,7 @@ export default function CallScreen() {
     setLocalStream(null);
     setRemoteStream(null);
     setIsVideoEnabled(currentCall?.mode === 'video');
-  }
+  }, [currentCall?.mode]);
 
   function toggleMute() {
     if (!localStreamRef.current) {
@@ -209,6 +222,7 @@ export default function CallScreen() {
       return;
     }
 
+    const activeCall = currentCall;
     let isCancelled = false;
 
     async function startRtcIfNeeded() {
@@ -221,12 +235,12 @@ export default function CallScreen() {
       if (!hasAnnouncedReadyRef.current) {
         hasAnnouncedReadyRef.current = true;
         setRtcStatus('ready');
-        socket.emit('call:ready', { callId: currentCall.id });
+        socket.emit('call:ready', { callId: activeCall.id });
       }
     }
 
     async function handleCallReady(payload: { callId: string }) {
-      if (payload.callId !== currentCall.id) {
+      if (payload.callId !== activeCall.id) {
         return;
       }
 
@@ -243,7 +257,7 @@ export default function CallScreen() {
       await peer.setLocalDescription(offer);
 
       socket.emit('webrtc:offer', {
-        callId: currentCall.id,
+        callId: activeCall.id,
         sdp: offer,
       });
 
@@ -251,20 +265,20 @@ export default function CallScreen() {
     }
 
     async function handleOffer(payload: SessionDescriptionPayload) {
-      if (payload.callId !== currentCall.id) {
+      if (payload.callId !== activeCall.id) {
         return;
       }
 
       const peer = await ensurePeerConnection();
 
-      await peer.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+      await peer.setRemoteDescription(new RTCSessionDescription(toSessionDescriptionInit(payload.sdp)));
       await flushPendingCandidates(peer);
 
-      const answer = await peer.createAnswer(sessionConstraints);
+      const answer = await peer.createAnswer();
       await peer.setLocalDescription(answer);
 
       socket.emit('webrtc:answer', {
-        callId: currentCall.id,
+        callId: activeCall.id,
         sdp: answer,
       });
 
@@ -272,17 +286,19 @@ export default function CallScreen() {
     }
 
     async function handleAnswer(payload: SessionDescriptionPayload) {
-      if (payload.callId !== currentCall.id || !peerRef.current) {
+      if (payload.callId !== activeCall.id || !peerRef.current) {
         return;
       }
 
-      await peerRef.current.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+      await peerRef.current.setRemoteDescription(
+        new RTCSessionDescription(toSessionDescriptionInit(payload.sdp))
+      );
       await flushPendingCandidates(peerRef.current);
       setRtcStatus('answer-received');
     }
 
     async function handleIceCandidate(payload: IceCandidatePayload) {
-      if (payload.callId !== currentCall.id || !payload.candidate) {
+      if (payload.callId !== activeCall.id || !payload.candidate) {
         return;
       }
 
@@ -311,7 +327,7 @@ export default function CallScreen() {
       socket.off('webrtc:ice-candidate', handleIceCandidate);
       cleanupPeer();
     };
-  }, [callId, currentCall, isCaller, user]);
+  }, [callId, cleanupPeer, currentCall, ensurePeerConnection, flushPendingCandidates, isCaller, sessionConstraints, user]);
 
   if (!currentCall || currentCall.id !== callId) {
     return (

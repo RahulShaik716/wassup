@@ -1,92 +1,103 @@
 import { router } from 'expo-router';
-  import { Alert, Button, Modal, Text, View } from 'react-native';
-  import { createContext, useContext, useEffect, useState, type PropsWithChildren } from 'react';
+import { Alert, Modal, Pressable, Text, View } from 'react-native';
+import { createContext, useContext, useEffect, useState, type PropsWithChildren } from 'react';
 
-  import { useSession } from '@/src/features/auth/session-context';
-  import { socket } from '@/src/lib/socket';
-  import type { CallMode, CallPayload, CallState } from '@/src/types/call';
+import { Avatar } from '@/src/components/common/Avatar';
+import { useSession } from '@/src/features/auth/session-context';
+import { socket } from '@/src/lib/socket';
+import { palette, spacing } from '@/src/theme';
+import type { CallMode, CallPayload, CallState } from '@/src/types/call';
 
-  type CallContextValue = {
-    currentCall: CallState | null;
-    startCall: (input: { toUserId: string; toUserName: string; mode: CallMode }) => void;
-    acceptIncomingCall: () => void;
-    rejectIncomingCall: () => void;
-    endCurrentCall: () => void;
-  };
+type CallContextValue = {
+  currentCall: CallState | null;
+  startCall: (input: { toUserId: string; toUserName: string; mode: CallMode }) => void;
+  acceptIncomingCall: () => void;
+  rejectIncomingCall: () => void;
+  endCurrentCall: () => void;
+};
 
-  const CallContext = createContext<CallContextValue | undefined>(undefined);
+const CallContext = createContext<CallContextValue | undefined>(undefined);
 
-  function withStatus(call: CallPayload, status: CallState['status']): CallState {
-    return { ...call, status };
-  }
+function withStatus(call: CallPayload, status: CallState['status']): CallState {
+  return { ...call, status };
+}
 
-  export function CallProvider({ children }: PropsWithChildren) {
-    const { user } = useSession();
-    const [incomingCall, setIncomingCall] = useState<CallState | null>(null);
-    const [currentCall, setCurrentCall] = useState<CallState | null>(null);
+export function CallProvider({ children }: PropsWithChildren) {
+  const { user } = useSession();
+  const [incomingCall, setIncomingCall] = useState<CallState | null>(null);
+  const [currentCall, setCurrentCall] = useState<CallState | null>(null);
 
-    useEffect(() => {
-      if (!user) {
-        setIncomingCall(null);
-        setCurrentCall(null);
-        socket.disconnect();
-        return;
-      }
+  useEffect(() => {
+    if (!user) {
+      setIncomingCall(null);
+      setCurrentCall(null);
+      socket.disconnect();
+      return;
+    }
 
-      function joinCurrentUser() {
-        socket.emit('user:join', { userId: user.id, name: user.name });
-      }
+    const currentUser = user;
 
-      function handleConnect() {
-        joinCurrentUser();
-      }
+    function joinCurrentUser() {
+      socket.emit('user:join', {
+        userId: currentUser.id,
+        name: currentUser.name,
+        email: currentUser.email,
+        avatarUrl: currentUser.avatarUrl,
+      });
+    }
 
-      function handleIncoming(call: CallPayload) {
-        setIncomingCall(withStatus(call, 'incoming'));
-      }
+    function handleConnect() {
+      joinCurrentUser();
+    }
 
-      function handleAccepted(call: CallPayload) {
-        setIncomingCall(null);
-        setCurrentCall(withStatus(call, 'active'));
-        router.replace(`/call/${call.id}`);
-      }
+    function handleIncoming(call: CallPayload) {
+      setIncomingCall(withStatus(call, 'incoming'));
+    }
 
-      function handleRejected(call: CallPayload) {
-        const otherName = user.id === call.fromUserId ? call.toUserName : call.fromUserName;
-        setIncomingCall((value) => (value?.id === call.id ? null : value));
-        setCurrentCall((value) => (value?.id === call.id ? null : value));
-        Alert.alert('Call rejected', `${otherName} rejected the call`);
-        router.replace('/chats');
-      }
+    function handleAccepted(call: CallPayload) {
+      setIncomingCall(null);
+      setCurrentCall(withStatus(call, 'active'));
+      router.replace(`/call/${call.id}`);
+    }
 
-      function handleEnded(call: CallPayload) {
-        const otherName = user.id === call.fromUserId ? call.toUserName : call.fromUserName;
-        setIncomingCall((value) => (value?.id === call.id ? null : value));
-        setCurrentCall((value) => (value?.id === call.id ? null : value));
-        Alert.alert('Call ended', `${otherName} ended the call`);
-        router.replace('/chats');
-      }
+    function handleRejected(call: CallPayload) {
+      const otherName =
+        currentUser.id === call.fromUserId ? call.toUserName : call.fromUserName;
+      setIncomingCall((value) => (value?.id === call.id ? null : value));
+      setCurrentCall((value) => (value?.id === call.id ? null : value));
+      Alert.alert('Call rejected', `${otherName} rejected the call`);
+      router.replace('/chats');
+    }
 
-      socket.on('connect', handleConnect);
-      socket.on('call:incoming', handleIncoming);
-      socket.on('call:accepted', handleAccepted);
-      socket.on('call:rejected', handleRejected);
-      socket.on('call:ended', handleEnded);
+    function handleEnded(call: CallPayload) {
+      const otherName =
+        currentUser.id === call.fromUserId ? call.toUserName : call.fromUserName;
+      setIncomingCall((value) => (value?.id === call.id ? null : value));
+      setCurrentCall((value) => (value?.id === call.id ? null : value));
+      Alert.alert('Call ended', `${otherName} ended the call`);
+      router.replace('/chats');
+    }
 
-      if (socket.connected) {
-        handleConnect();
-      } else {
-        socket.connect();
-      }
+    socket.on('connect', handleConnect);
+    socket.on('call:incoming', handleIncoming);
+    socket.on('call:accepted', handleAccepted);
+    socket.on('call:rejected', handleRejected);
+    socket.on('call:ended', handleEnded);
 
-      return () => {
-        socket.off('connect', handleConnect);
-        socket.off('call:incoming', handleIncoming);
-        socket.off('call:accepted', handleAccepted);
-        socket.off('call:rejected', handleRejected);
-        socket.off('call:ended', handleEnded);
-      };
-    }, [user]);
+    if (socket.connected) {
+      handleConnect();
+    } else {
+      socket.connect();
+    }
+
+    return () => {
+      socket.off('connect', handleConnect);
+      socket.off('call:incoming', handleIncoming);
+      socket.off('call:accepted', handleAccepted);
+      socket.off('call:rejected', handleRejected);
+      socket.off('call:ended', handleEnded);
+    };
+  }, [user]);
 
     function startCall(input: { toUserId: string; toUserName: string; mode: CallMode }) {
       if (!user) return;
@@ -151,53 +162,93 @@ import { router } from 'expo-router';
       socket.emit('call:end', { callId: currentCall.id });
     }
 
-    return (
-      <CallContext.Provider
-        value={{
-          currentCall,
-          startCall,
-          acceptIncomingCall,
-          rejectIncomingCall,
-          endCurrentCall,
-        }}>
-        {children}
+  return (
+    <CallContext.Provider
+      value={{
+        currentCall,
+        startCall,
+        acceptIncomingCall,
+        rejectIncomingCall,
+        endCurrentCall,
+      }}>
+      {children}
 
-        <Modal animationType="fade" transparent visible={Boolean(incomingCall)}>
+      <Modal animationType="fade" transparent visible={Boolean(incomingCall)}>
+        <View
+          style={{
+            flex: 1,
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: spacing.lg,
+            backgroundColor: 'rgba(16,18,20,0.55)',
+          }}>
           <View
             style={{
-              flex: 1,
-              backgroundColor: 'rgba(0,0,0,0.45)',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: 24,
+              width: '100%',
+              maxWidth: 360,
+              borderRadius: 28,
+              borderWidth: 1,
+              borderColor: palette.border,
+              backgroundColor: palette.surface,
+              padding: spacing.lg,
             }}>
-            <View
-              style={{
-                width: '100%',
-                maxWidth: 360,
-                backgroundColor: 'white',
-                borderRadius: 16,
-                padding: 20,
-                gap: 12,
-              }}>
-              <Text style={{ fontSize: 22, fontWeight: '700' }}>Incoming Call</Text>
-              <Text>{incomingCall?.fromUserName}</Text>
-              <Text>{incomingCall?.mode === 'video' ? 'Video call' : 'Voice call'}</Text>
-              <Button title="Accept" onPress={acceptIncomingCall} />
-              <Button title="Reject" onPress={rejectIncomingCall} />
+            <Text style={{ color: palette.mutedText, fontSize: 12, fontWeight: '700' }}>
+              INCOMING CALL
+            </Text>
+            <View style={{ alignItems: 'center', marginTop: spacing.lg, marginBottom: spacing.lg }}>
+              <Avatar name={incomingCall?.fromUserName || 'Caller'} size={88} />
+              <Text
+                style={{
+                  color: palette.text,
+                  fontSize: 26,
+                  fontWeight: '800',
+                  marginTop: spacing.md,
+                }}>
+                {incomingCall?.fromUserName}
+              </Text>
+              <Text style={{ color: palette.mutedText, marginTop: spacing.xs }}>
+                {incomingCall?.mode === 'video' ? 'Video call' : 'Voice call'}
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+              <Pressable
+                onPress={rejectIncomingCall}
+                style={{
+                  flex: 1,
+                  minHeight: 54,
+                  borderRadius: 18,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: palette.surfaceMuted,
+                }}>
+                <Text style={{ color: palette.text, fontSize: 15, fontWeight: '700' }}>Decline</Text>
+              </Pressable>
+              <Pressable
+                onPress={acceptIncomingCall}
+                style={{
+                  flex: 1,
+                  minHeight: 54,
+                  borderRadius: 18,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: palette.accentDark,
+                }}>
+                <Text style={{ color: palette.surface, fontSize: 15, fontWeight: '700' }}>Accept</Text>
+              </Pressable>
             </View>
           </View>
-        </Modal>
-      </CallContext.Provider>
-    );
+        </View>
+      </Modal>
+    </CallContext.Provider>
+  );
+}
+
+export function useCall() {
+  const value = useContext(CallContext);
+
+  if (!value) {
+    throw new Error('useCall must be used inside CallProvider');
   }
 
-  export function useCall() {
-    const value = useContext(CallContext);
-
-    if (!value) {
-      throw new Error('useCall must be used inside CallProvider');
-    }
-
-    return value;
-  }
+  return value;
+}
