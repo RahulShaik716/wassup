@@ -43,9 +43,9 @@ jobs:
 
       - name: Detect app directory
         run: |
-          if [ -f "wassup/package.json" ] && [ -d "wassup/android" ]; then
+          if [ -f "wassup/package.json" ] && [ -f "wassup/app.json" ]; then
             echo "APP_DIR=wassup" >> "$GITHUB_ENV"
-          elif [ -f "package.json" ] && [ -d "android" ]; then
+          elif [ -f "package.json" ] && [ -f "app.json" ]; then
             echo "APP_DIR=." >> "$GITHUB_ENV"
           else
             echo "Could not find the Expo Android app directory."
@@ -63,6 +63,11 @@ jobs:
         run: |
           cd "$APP_DIR"
           npm ci
+
+      - name: Generate Android project
+        run: |
+          cd "$APP_DIR"
+          npx expo prebuild --platform android --non-interactive --no-install
 
       - name: Build Android APKs
         run: |
