@@ -4,7 +4,13 @@ function normalizeServerUrl(input?: string) {
   const trimmed = input?.trim();
 
   if (!trimmed) {
-    return 'http://192.168.1.70:3001';
+    if (__DEV__) {
+      return 'http://192.168.1.70:3001';
+    }
+
+    throw new Error(
+      'Missing EXPO_PUBLIC_SERVER_URL. Set it before creating an installable Android build.'
+    );
   }
 
   try {

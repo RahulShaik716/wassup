@@ -5,6 +5,9 @@ import { Platform } from 'react-native';
 
 export const MESSAGE_NOTIFICATION_CHANNEL_ID = 'wassup-messages';
 export const CALL_NOTIFICATION_CHANNEL_ID = 'wassup-calls';
+export const CALL_NOTIFICATION_CATEGORY_ID = 'wassup-incoming-call';
+export const CALL_ACCEPT_ACTION_ID = 'wassup-call-accept';
+export const CALL_DECLINE_ACTION_ID = 'wassup-call-decline';
 
 type ForegroundMessageToneData = {
   kind: 'foreground-message-tone';
@@ -59,6 +62,7 @@ Notifications.setNotificationHandler({
 });
 
 let areChannelsConfigured = false;
+let areCategoriesConfigured = false;
 let lastForegroundToneAt = 0;
 
 async function configureNotificationChannelsAsync() {
@@ -99,6 +103,32 @@ async function configureNotificationChannelsAsync() {
   areChannelsConfigured = true;
 }
 
+async function configureNotificationCategoriesAsync() {
+  if (areCategoriesConfigured) {
+    return;
+  }
+
+  await Notifications.setNotificationCategoryAsync(CALL_NOTIFICATION_CATEGORY_ID, [
+    {
+      identifier: CALL_ACCEPT_ACTION_ID,
+      buttonTitle: 'Accept',
+      options: {
+        opensAppToForeground: true,
+      },
+    },
+    {
+      identifier: CALL_DECLINE_ACTION_ID,
+      buttonTitle: 'Decline',
+      options: {
+        isDestructive: true,
+        opensAppToForeground: true,
+      },
+    },
+  ]);
+
+  areCategoriesConfigured = true;
+}
+
 function resolveProjectId() {
   const easProjectId =
     Constants.easConfig?.projectId ||
@@ -110,6 +140,7 @@ function resolveProjectId() {
 
 export async function registerForPushNotificationsAsync() {
   await configureNotificationChannelsAsync();
+  await configureNotificationCategoriesAsync();
 
   if (!Device.isDevice) {
     console.log('[push] Not a physical device. Skipping push registration.');

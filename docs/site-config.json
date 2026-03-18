@@ -1,0 +1,6 @@
+{
+  "repository": "OWNER/REPO",
+  "releaseTag": "android-debug-latest",
+  "primaryAssetName": "wassup-debug-signed.apk",
+  "developerAssetName": "wassup-debug.apk"
+}

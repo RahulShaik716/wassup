@@ -1,9 +1,13 @@
 import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
-import { useEffect, useRef, useState, type PropsWithChildren } from 'react';
+import { useCallback, useEffect, useRef, useState, type PropsWithChildren } from 'react';
 
 import { useSession } from '@/src/features/auth/session-context';
-import { registerForPushNotificationsAsync } from '@/src/lib/push-notifications';
+import {
+  CALL_ACCEPT_ACTION_ID,
+  CALL_DECLINE_ACTION_ID,
+  registerForPushNotificationsAsync,
+} from '@/src/lib/push-notifications';
 import { socket } from '@/src/lib/socket';
 
 type PushRouteData = {
@@ -13,6 +17,13 @@ type PushRouteData = {
   callId?: unknown;
   mode?: unknown;
 };
+
+type PendingNotificationIntent = {
+  actionIdentifier: string;
+  data: PushRouteData;
+};
+
+const SOCKET_ACK_TIMEOUT_MS = 5_000;
 
 function readString(value: unknown) {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
@@ -46,8 +57,75 @@ function handleNotificationNavigation(data: PushRouteData) {
 export function PushNotificationsProvider({ children }: PropsWithChildren) {
   const { isHydrating, user } = useSession();
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
-  const [pendingNavigationData, setPendingNavigationData] = useState<PushRouteData | null>(null);
+  const [pendingNotificationIntent, setPendingNotificationIntent] =
+    useState<PendingNotificationIntent | null>(null);
   const lastHandledNotificationIdRef = useRef<string | null>(null);
+
+  const waitForSocketConnection = useCallback(() => {
+    return new Promise<void>((resolve, reject) => {
+      if (socket.connected) {
+        resolve();
+        return;
+      }
+
+      const timeout = setTimeout(() => {
+        socket.off('connect', handleConnect);
+        socket.off('connect_error', handleConnectError);
+        reject(new Error('Socket connection timed out'));
+      }, SOCKET_ACK_TIMEOUT_MS);
+
+      function handleConnect() {
+        clearTimeout(timeout);
+        socket.off('connect_error', handleConnectError);
+        resolve();
+      }
+
+      function handleConnectError() {
+        clearTimeout(timeout);
+        socket.off('connect', handleConnect);
+        reject(new Error('Socket connection failed'));
+      }
+
+      socket.once('connect', handleConnect);
+      socket.once('connect_error', handleConnectError);
+      socket.connect();
+    });
+  }, []);
+
+  const emitAck = useCallback(<TResponse,>(event: string, payload?: Record<string, unknown>) => {
+    return new Promise<TResponse>((resolve, reject) => {
+      const callback = (error: Error | null, response: TResponse) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve(response);
+      };
+
+      if (payload) {
+        socket.timeout(SOCKET_ACK_TIMEOUT_MS).emit(event, payload, callback);
+        return;
+      }
+
+      socket.timeout(SOCKET_ACK_TIMEOUT_MS).emit(event, callback);
+    });
+  }, []);
+
+  const ensureJoinedCurrentUser = useCallback(async () => {
+    if (!user) {
+      throw new Error('Cannot join socket without a signed-in user');
+    }
+
+    await waitForSocketConnection();
+    await emitAck<{ ok: boolean; error?: string }>('user:join', {
+      userId: user.id,
+      name: user.name,
+      email: user.email,
+      avatarUrl: user.avatarUrl,
+      username: user.username,
+    });
+  }, [emitAck, user, waitForSocketConnection]);
 
   useEffect(() => {
     let isMounted = true;
@@ -123,23 +201,48 @@ export function PushNotificationsProvider({ children }: PropsWithChildren) {
   }, [expoPushToken, user]);
 
   useEffect(() => {
-    if (isHydrating || !pendingNavigationData) {
+    if (isHydrating || !pendingNotificationIntent) {
       return;
     }
 
     if (!user) {
-      setPendingNavigationData(null);
+      setPendingNotificationIntent(null);
       return;
     }
 
-    if (readString(pendingNavigationData.type) === 'call' && !socket.connected) {
-      console.log('[push] Reconnecting socket before handling call notification tap');
-      socket.connect();
+    const intent = pendingNotificationIntent;
+
+    async function handlePendingIntent() {
+      const { actionIdentifier, data } = intent;
+      const type = readString(data.type);
+      const callId = readString(data.callId);
+
+      try {
+        if (type === 'call') {
+          console.log('[push] Reconnecting and joining socket before handling call notification');
+          await ensureJoinedCurrentUser();
+
+          if (actionIdentifier === CALL_ACCEPT_ACTION_ID && callId) {
+            await emitAck<{ ok: boolean; error?: string }>('call:accept', { callId });
+            return;
+          }
+
+          if (actionIdentifier === CALL_DECLINE_ACTION_ID && callId) {
+            await emitAck<{ ok: boolean; error?: string }>('call:reject', { callId });
+            return;
+          }
+        }
+
+        handleNotificationNavigation(data);
+      } catch (error) {
+        console.warn('[push] Notification action failed', error);
+      } finally {
+        setPendingNotificationIntent(null);
+      }
     }
 
-    handleNotificationNavigation(pendingNavigationData);
-    setPendingNavigationData(null);
-  }, [isHydrating, pendingNavigationData, user]);
+    void handlePendingIntent();
+  }, [emitAck, ensureJoinedCurrentUser, isHydrating, pendingNotificationIntent, user]);
 
   useEffect(() => {
     async function hydrateLastNotificationResponse() {
@@ -150,7 +253,10 @@ export function PushNotificationsProvider({ children }: PropsWithChildren) {
       }
 
       lastHandledNotificationIdRef.current = response.notification.request.identifier;
-      setPendingNavigationData(response.notification.request.content.data as PushRouteData);
+      setPendingNotificationIntent({
+        actionIdentifier: response.actionIdentifier,
+        data: response.notification.request.content.data as PushRouteData,
+      });
       await Notifications.clearLastNotificationResponseAsync();
     }
 
@@ -165,7 +271,10 @@ export function PushNotificationsProvider({ children }: PropsWithChildren) {
       }
 
       lastHandledNotificationIdRef.current = response.notification.request.identifier;
-      setPendingNavigationData(response.notification.request.content.data as PushRouteData);
+      setPendingNotificationIntent({
+        actionIdentifier: response.actionIdentifier,
+        data: response.notification.request.content.data as PushRouteData,
+      });
       void Notifications.clearLastNotificationResponseAsync();
     }
 

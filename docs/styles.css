@@ -1,0 +1,275 @@
+:root {
+  --bg: #f7efe2;
+  --paper: rgba(255, 252, 246, 0.82);
+  --paper-strong: rgba(255, 252, 246, 0.96);
+  --ink: #132235;
+  --muted: #5f6e7e;
+  --line: rgba(19, 34, 53, 0.12);
+  --teal: #1fc9b7;
+  --teal-deep: #1288a8;
+  --orange: #ff6b57;
+  --gold: #f2c468;
+  --shadow: 0 24px 80px rgba(19, 34, 53, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  background:
+    radial-gradient(circle at top left, rgba(31, 201, 183, 0.24), transparent 28%),
+    radial-gradient(circle at bottom right, rgba(255, 107, 87, 0.18), transparent 24%),
+    linear-gradient(180deg, #fbf4e7 0%, #f5ead8 100%);
+  color: var(--ink);
+  font-family: "Space Grotesk", sans-serif;
+}
+
+.page-shell {
+  position: relative;
+  overflow: hidden;
+}
+
+.page {
+  width: min(1120px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 32px 0 72px;
+}
+
+.glow {
+  position: fixed;
+  width: 380px;
+  height: 380px;
+  border-radius: 999px;
+  filter: blur(72px);
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.glow-left {
+  top: -80px;
+  left: -120px;
+  background: rgba(31, 201, 183, 0.34);
+}
+
+.glow-right {
+  right: -80px;
+  bottom: 40px;
+  background: rgba(255, 107, 87, 0.2);
+}
+
+.hero-card,
+.feature-card,
+.details-card {
+  border: 1px solid var(--line);
+  background: var(--paper);
+  backdrop-filter: blur(20px);
+  box-shadow: var(--shadow);
+}
+
+.hero-card {
+  border-radius: 36px;
+  padding: 32px;
+}
+
+.brand-row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.brand-mark {
+  width: 92px;
+  height: 92px;
+  flex-shrink: 0;
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  line-height: 0.96;
+}
+
+h1 {
+  font-family: "Instrument Serif", serif;
+  font-size: clamp(3.2rem, 7vw, 5.4rem);
+  font-weight: 400;
+}
+
+h2 {
+  font-size: clamp(1.6rem, 4vw, 2.5rem);
+  font-weight: 700;
+}
+
+h3 {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.hero-copy {
+  display: grid;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.lede {
+  margin: 0;
+  font-size: clamp(1.25rem, 2vw, 1.6rem);
+  line-height: 1.4;
+  max-width: 860px;
+}
+
+.subtle,
+.build-meta,
+.feature-card p,
+.details-list {
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.subtle,
+.build-meta {
+  margin: 0;
+}
+
+.build-panel {
+  margin-top: 32px;
+  border-radius: 28px;
+  padding: 24px;
+  background: var(--paper-strong);
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 20px;
+}
+
+.cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 54px;
+  padding: 0 22px;
+  border-radius: 999px;
+  text-decoration: none;
+  font-weight: 700;
+  transition: transform 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
+}
+
+.cta:hover {
+  transform: translateY(-1px);
+}
+
+.cta.primary {
+  background: linear-gradient(135deg, var(--orange), #ff8a4f);
+  color: white;
+  box-shadow: 0 18px 34px rgba(255, 107, 87, 0.24);
+}
+
+.cta.secondary {
+  background: rgba(19, 34, 53, 0.06);
+  color: var(--ink);
+}
+
+.cta.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.feature-grid {
+  margin-top: 24px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.feature-card,
+.details-card {
+  border-radius: 28px;
+  padding: 24px;
+}
+
+.feature-card p,
+.details-card p {
+  margin: 0;
+}
+
+.feature-card {
+  min-height: 240px;
+  display: grid;
+  gap: 16px;
+}
+
+.details-card {
+  margin-top: 24px;
+  display: grid;
+  gap: 18px;
+}
+
+.details-list {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.details-list li + li {
+  margin-top: 10px;
+}
+
+strong {
+  color: var(--ink);
+}
+
+@media (max-width: 900px) {
+  .feature-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-card {
+    padding: 24px;
+  }
+}
+
+@media (max-width: 640px) {
+  .page {
+    width: min(100% - 20px, 1120px);
+    padding-top: 20px;
+    padding-bottom: 40px;
+  }
+
+  .brand-row {
+    align-items: flex-start;
+  }
+
+  .brand-mark {
+    width: 74px;
+    height: 74px;
+  }
+
+  .cta-row {
+    flex-direction: column;
+  }
+
+  .cta {
+    width: 100%;
+  }
+}

@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Wassup for Android</title>
+    <meta
+      name="description"
+      content="Wassup is a private username-based chat app with 1:1 messaging, voice calls, and video calls."
+    />
+    <link rel="icon" href="./assets/wassup-logo.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Space+Grotesk:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <div class="glow glow-left"></div>
+      <div class="glow glow-right"></div>
+
+      <main class="page">
+        <section class="hero-card">
+          <div class="brand-row">
+            <img class="brand-mark" src="./assets/wassup-logo.svg" alt="Wassup logo" />
+            <div>
+              <p class="eyebrow">Private Android build</p>
+              <h1>Wassup</h1>
+            </div>
+          </div>
+
+          <div class="hero-copy">
+            <p class="lede">
+              Username-first chat with voice and video calls, built for direct one-to-one conversations.
+            </p>
+            <p class="subtle">
+              Add someone first, then chat. Notifications stay generic on the lock screen and the app avoids public presence hints.
+            </p>
+          </div>
+
+          <div class="build-panel">
+            <div>
+              <p class="eyebrow">Latest Android build</p>
+              <h2 id="build-title">Looking up the newest APK...</h2>
+              <p class="build-meta" id="build-meta">
+                The landing page tracks a stable GitHub release tag and refreshes automatically when a new build is published.
+              </p>
+            </div>
+
+            <div class="cta-row">
+              <a class="cta primary disabled" id="primary-download" href="#" aria-disabled="true">
+                Download Android APK
+              </a>
+              <a class="cta secondary disabled" id="developer-download" href="#" aria-disabled="true">
+                Download Raw Debug APK
+              </a>
+            </div>
+          </div>
+        </section>
+
+        <section class="feature-grid">
+          <article class="feature-card">
+            <p class="eyebrow">How it works</p>
+            <h3>Only talk after you add them</h3>
+            <p>
+              Search by username, add the person, then start a private thread. The app does not expose a public follower graph or broad contact feed.
+            </p>
+          </article>
+
+          <article class="feature-card">
+            <p class="eyebrow">Calling</p>
+            <h3>Voice and video built in</h3>
+            <p>
+              One-to-one voice and video calling run inside the same conversation flow, with notification actions for accepting or declining incoming calls.
+            </p>
+          </article>
+
+          <article class="feature-card">
+            <p class="eyebrow">Notifications</p>
+            <h3>Generic by default</h3>
+            <p>
+              Message and call notifications use system channels and keep their text generic, so the lock screen reveals less about who is contacting you.
+            </p>
+          </article>
+        </section>
+
+        <section class="details-card">
+          <div>
+            <p class="eyebrow">Install notes</p>
+            <h3>What you are downloading</h3>
+          </div>
+
+          <ul class="details-list">
+            <li><strong>Android APK</strong>: installable build signed with the debug keystore for easy testing.</li>
+            <li><strong>Raw debug APK</strong>: developer-oriented build artifact for local debugging flows.</li>
+            <li><strong>Source of truth</strong>: the page resolves metadata from the latest GitHub release tag, so the download buttons stay current after every pipeline run.</li>
+          </ul>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

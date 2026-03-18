@@ -22,6 +22,7 @@ const PORT = Number(process.env.PORT ?? 3001);
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 const MESSAGE_NOTIFICATION_CHANNEL_ID = 'wassup-messages';
 const CALL_NOTIFICATION_CHANNEL_ID = 'wassup-calls';
+const CALL_NOTIFICATION_CATEGORY_ID = 'wassup-incoming-call';
 const CALL_RINGING_TIMEOUT_MS = 45_000;
 
 type SessionDescriptionPayload = {
@@ -123,6 +124,7 @@ type ExpoPushMessage = {
   body: string;
   sound?: 'default';
   channelId?: string;
+  categoryId?: string;
   priority?: 'default' | 'normal' | 'high';
   ttl?: number;
   data?: Record<string, string>;
@@ -666,6 +668,7 @@ io.on('connection', (socket) => {
         body: 'Incoming call',
         sound: 'default',
         channelId: CALL_NOTIFICATION_CHANNEL_ID,
+        categoryId: CALL_NOTIFICATION_CATEGORY_ID,
         priority: 'high',
         ttl: 60,
         data: {

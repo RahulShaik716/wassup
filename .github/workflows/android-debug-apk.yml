@@ -1,0 +1,90 @@
+name: Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'wassup/**'
+      - '.github/workflows/android-debug-apk.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: wassup
+    env:
+      CI: true
+      EXPO_PUBLIC_SERVER_URL: ${{ vars.EXPO_PUBLIC_SERVER_URL }}
+      EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID }}
+      EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID }}
+      EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME: ${{ secrets.EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: wassup/package-lock.json
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Verify build environment
+        run: |
+          if [ -z "$EXPO_PUBLIC_SERVER_URL" ]; then
+            echo "Missing EXPO_PUBLIC_SERVER_URL GitHub repository variable."
+            exit 1
+          fi
+
+      - name: Install app dependencies
+        run: npm ci
+
+      - name: Build Android APKs
+        run: |
+          chmod +x android/gradlew
+          cd android
+          ./gradlew assembleRelease
+          ./gradlew assembleDebug
+
+      - name: Prepare APK artifacts
+        run: |
+          cp android/app/build/outputs/apk/release/app-release.apk android/app/build/outputs/apk/release/wassup-debug-signed.apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/wassup-debug.apk
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wassup-android-apks
+          path: |
+            wassup/android/app/build/outputs/apk/release/wassup-debug-signed.apk
+            wassup/android/app/build/outputs/apk/debug/wassup-debug.apk
+
+      - name: Publish latest release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          release_tag="android-debug-latest"
+          release_title="Latest Android debug APKs"
+          release_notes="Automated Android build for Wassup. The installable APK is signed with the debug keystore for easy testing."
+
+          gh release view "$release_tag" >/dev/null 2>&1 || \
+            gh release create "$release_tag" --title "$release_title" --notes "$release_notes"
+
+          gh release upload "$release_tag" \
+            android/app/build/outputs/apk/release/wassup-debug-signed.apk#wassup-debug-signed.apk \
+            android/app/build/outputs/apk/debug/wassup-debug.apk#wassup-debug.apk \
+            --clobber

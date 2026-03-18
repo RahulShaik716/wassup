@@ -1,11 +1,9 @@
-import * as Haptics from 'expo-haptics';
 import InCallManager from 'react-native-incall-manager';
 
 import { playForegroundMessageNotificationToneAsync } from '@/src/lib/push-notifications';
 
 let isIncomingCallRinging = false;
 let isOutgoingRingbackPlaying = false;
-let messageToneTimeout: ReturnType<typeof setTimeout> | null = null;
 
 export async function playIncomingCallRingtone() {
   if (isIncomingCallRinging) {
@@ -15,7 +13,6 @@ export async function playIncomingCallRingtone() {
   stopMessageTone();
   isIncomingCallRinging = true;
   InCallManager.startRingtone('_DEFAULT_', [0, 250, 120], 'default', 0);
-  await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
 }
 
 export function stopIncomingCallRingtone() {
@@ -50,36 +47,11 @@ export async function playMessageTone() {
     return;
   }
 
-  stopMessageTone();
-
-  try {
-    const didUseNotificationTone = await playForegroundMessageNotificationToneAsync();
-
-    if (!didUseNotificationTone) {
-      InCallManager.startRingback('_DEFAULT_');
-      messageToneTimeout = setTimeout(() => {
-        InCallManager.stopRingback();
-        messageToneTimeout = null;
-      }, 260);
-    }
-  } catch {
-    InCallManager.startRingback('_DEFAULT_');
-    messageToneTimeout = setTimeout(() => {
-      InCallManager.stopRingback();
-      messageToneTimeout = null;
-    }, 260);
-  }
-
-  await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  await playForegroundMessageNotificationToneAsync();
 }
 
 export function stopMessageTone() {
-  if (messageToneTimeout) {
-    clearTimeout(messageToneTimeout);
-    messageToneTimeout = null;
-  }
-
-  InCallManager.stopRingback();
+  // Foreground message alerts are delivered through the system notification channel.
 }
 
 export function stopAllNotificationSounds() {
