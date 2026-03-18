@@ -89,7 +89,7 @@ async function configureNotificationChannelsAsync() {
     showBadge: true,
     enableLights: true,
     enableVibrate: true,
-    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PRIVATE,
     vibrationPattern: [0, 300, 200, 300],
     audioAttributes: {
       usage: Notifications.AndroidAudioUsage.NOTIFICATION_RINGTONE,

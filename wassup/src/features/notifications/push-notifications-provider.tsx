@@ -9,7 +9,6 @@ import { socket } from '@/src/lib/socket';
 type PushRouteData = {
   type?: unknown;
   chatUserId?: unknown;
-  name?: unknown;
   username?: unknown;
   callId?: unknown;
   mode?: unknown;
@@ -36,7 +35,7 @@ function handleNotificationNavigation(data: PushRouteData) {
     pathname: '/chat/[chatId]',
     params: {
       chatId,
-      name: readString(data.name) ?? chatId,
+      name: readString(data.username) ?? chatId,
       username: readString(data.username) ?? chatId,
       callId: readString(data.callId),
       mode: readString(data.mode),

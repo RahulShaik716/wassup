@@ -12,7 +12,6 @@ import { palette, spacing } from '@/src/theme';
 import type { PublicUser } from '@/src/types/user';
 
 type DirectoryUser = PublicUser & {
-  isOnline: boolean;
   isAdded: boolean;
 };
 
@@ -34,16 +33,10 @@ type AddContactResponse = {
   error?: string;
 };
 
-type PresenceUpdatePayload = {
-  user: PublicUser;
-  isOnline: boolean;
-};
-
 function normalizeDirectoryUsers(users: DirectoryUser[]) {
-  return users.map(({ isAdded, isOnline, ...user }) => ({
+  return users.map(({ isAdded, ...user }) => ({
     ...normalizePublicUser(user),
     isAdded,
-    isOnline,
   }));
 }
 
@@ -54,7 +47,6 @@ function sortUsers(users: DirectoryUser[]) {
 export default function ChatsScreen() {
   const { currentCall } = useCall();
   const { user } = useSession();
-  const [connectionLabel, setConnectionLabel] = useState(socket.connected ? 'Online' : 'Connecting');
   const [contacts, setContacts] = useState<DirectoryUser[]>([]);
   const [searchResults, setSearchResults] = useState<DirectoryUser[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -143,7 +135,6 @@ export default function ChatsScreen() {
     const currentUser = user;
 
     function handleConnect() {
-      setConnectionLabel('Online');
       socket.emit('user:join', {
         userId: currentUser.id,
         name: currentUser.name,
@@ -158,33 +149,16 @@ export default function ChatsScreen() {
       }
     }
 
-    function handleDisconnect() {
-      setConnectionLabel('Offline');
-    }
-
-    function handlePresenceUpdate(_payload: PresenceUpdatePayload) {
-      syncContacts();
-
-      if (searchQueryRef.current) {
-        searchDirectory(searchQueryRef.current);
-      }
-    }
-
     socket.on('connect', handleConnect);
-    socket.on('disconnect', handleDisconnect);
-    socket.on('presence:update', handlePresenceUpdate);
 
     if (socket.connected) {
       handleConnect();
     } else {
-      setConnectionLabel('Connecting...');
       socket.connect();
     }
 
     return () => {
       socket.off('connect', handleConnect);
-      socket.off('disconnect', handleDisconnect);
-      socket.off('presence:update', handlePresenceUpdate);
     };
   }, [user]);
 
@@ -201,7 +175,6 @@ export default function ChatsScreen() {
 
     const timeout = setTimeout(() => {
       if (!socket.connected) {
-        setConnectionLabel('Connecting...');
         socket.connect();
         return;
       }
@@ -273,15 +246,9 @@ export default function ChatsScreen() {
     const actionLabel = canChat ? 'Chat' : 'Add';
     const subtitle = isShowingSearch
       ? item.isAdded
-        ? item.isOnline
-          ? 'Already added · Online'
-          : 'Already added · Offline'
-        : item.isOnline
-          ? 'Available to add'
-          : 'Offline but available to add'
-      : item.isOnline
-        ? 'Online now'
-        : 'Offline';
+        ? 'Already in your contacts'
+        : 'Add privately by username'
+      : 'Private conversation';
 
     return (
       <Pressable
@@ -364,7 +331,7 @@ export default function ChatsScreen() {
                 @{user?.username}
               </Text>
               <Text style={{ color: palette.mutedText, marginTop: spacing.sm, lineHeight: 22 }}>
-                Find people by username, add them to your contacts, and chat only after they are added.
+                Find people by username, add them to your contacts, and keep conversations limited to the people you choose.
               </Text>
             </View>
 
@@ -401,10 +368,10 @@ export default function ChatsScreen() {
                   borderColor: palette.border,
                 }}>
                 <Text style={{ color: palette.mutedText, fontSize: 12, fontWeight: '700' }}>
-                  STATUS
+                  PRIVACY
                 </Text>
                 <Text style={{ color: palette.text, fontSize: 16, fontWeight: '700', marginTop: 4 }}>
-                  {connectionLabel}
+                  Hidden
                 </Text>
               </View>
               <View

@@ -67,7 +67,23 @@ export default function SettingsScreen() {
             Notifications
           </Text>
           <Text style={{ color: palette.mutedText, lineHeight: 22, marginTop: spacing.sm }}>
-            Message alerts and incoming call notifications are enabled on this device.
+            This device receives private message alerts and incoming call notifications.
+          </Text>
+        </View>
+
+        <View
+          style={{
+            padding: spacing.lg,
+            borderRadius: 24,
+            borderWidth: 1,
+            borderColor: palette.border,
+            backgroundColor: palette.surface,
+          }}>
+          <Text style={{ color: palette.text, fontSize: 16, fontWeight: '700' }}>
+            Privacy
+          </Text>
+          <Text style={{ color: palette.mutedText, lineHeight: 22, marginTop: spacing.sm }}>
+            Contact presence is hidden, notifications stay generic on the lock screen, and chats open only for people you add.
           </Text>
         </View>
 

@@ -9,4 +9,4 @@ export type AppUser = {
   username: string;
 };
 
-export type PublicUser = Omit<AppUser, 'provider'>;
+export type PublicUser = Pick<AppUser, 'id' | 'username'>;

@@ -39,7 +39,6 @@ export default function ChatDetailScreen() {
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState('');
-  const [status, setStatus] = useState(socket.connected ? 'Online now' : 'Connecting...');
 
   const otherUser = {
     id: params.chatId,
@@ -89,12 +88,7 @@ export default function ChatDetailScreen() {
     }
 
     function handleConnect() {
-      setStatus('Online now');
       joinRoom();
-    }
-
-    function handleDisconnect() {
-      setStatus('Connecting...');
     }
 
     function handleChatMessage(message: ChatMessage) {
@@ -104,20 +98,17 @@ export default function ChatDetailScreen() {
     }
 
     socket.on('connect', handleConnect);
-    socket.on('disconnect', handleDisconnect);
     socket.on('chat:message', handleChatMessage);
 
     if (socket.connected) {
       handleConnect();
     } else {
-      setStatus('Connecting...');
       socket.connect();
     }
 
     return () => {
       socket.emit('chat:leave', { chatId: roomId });
       socket.off('connect', handleConnect);
-      socket.off('disconnect', handleDisconnect);
       socket.off('chat:message', handleChatMessage);
     };
   }, [roomId, user]);
@@ -188,7 +179,7 @@ export default function ChatDetailScreen() {
                   @{otherUser.username}
                 </Text>
                 <Text style={{ color: palette.mutedText, marginTop: 2 }}>
-                  {status}
+                  Private conversation
                 </Text>
               </View>
             </View>

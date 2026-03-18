@@ -2,7 +2,7 @@ import type { CallMode, CallStatus, User } from '@prisma/client';
 
 import { prisma } from '../lib/prisma.js';
 
-export type StoredPublicUser = {
+export type StoredUserProfileInput = {
   id: string;
   name: string;
   email?: string;
@@ -10,8 +10,12 @@ export type StoredPublicUser = {
   username: string;
 };
 
+export type StoredPublicUser = {
+  id: string;
+  username: string;
+};
+
 export type StoredDirectoryUser = StoredPublicUser & {
-  isOnline: boolean;
   isAdded: boolean;
 };
 
@@ -51,29 +55,18 @@ export type StoredCallLogItem = {
 function toStoredPublicUser(user: User): StoredPublicUser {
   return {
     id: user.id,
-    name: user.name,
-    email: user.email ?? undefined,
-    avatarUrl: user.avatarUrl,
     username: user.username,
   };
 }
 
-function toDirectoryUser(
-  viewerUserId: string,
-  user: User,
-  options: {
-    onlineUserIds: Set<string>;
-    addedContactIds?: Set<string>;
-  }
-): StoredDirectoryUser {
+function toDirectoryUser(user: User, options: { addedContactIds?: Set<string> }): StoredDirectoryUser {
   return {
     ...toStoredPublicUser(user),
-    isOnline: options.onlineUserIds.has(user.id),
     isAdded: options.addedContactIds?.has(user.id) ?? false,
   };
 }
 
-export async function upsertPublicUser(user: StoredPublicUser) {
+export async function upsertPublicUser(user: StoredUserProfileInput) {
   await prisma.user.upsert({
     where: { id: user.id },
     update: {
@@ -100,7 +93,7 @@ export async function findPublicUserById(userId: string) {
   return user ? toStoredPublicUser(user) : null;
 }
 
-export async function listStoredContacts(viewerUserId: string, onlineUserIds: Set<string>) {
+export async function listStoredContacts(viewerUserId: string) {
   const contacts = await prisma.contact.findMany({
     where: { ownerId: viewerUserId },
     include: {
@@ -114,18 +107,13 @@ export async function listStoredContacts(viewerUserId: string, onlineUserIds: Se
   });
 
   return contacts.map(({ contact }) =>
-    toDirectoryUser(viewerUserId, contact, {
-      onlineUserIds,
+    toDirectoryUser(contact, {
       addedContactIds: new Set([contact.id]),
     })
   );
 }
 
-export async function searchStoredDirectory(
-  viewerUserId: string,
-  query: string,
-  onlineUserIds: Set<string>
-) {
+export async function searchStoredDirectory(viewerUserId: string, query: string) {
   const normalizedQuery = query.trim();
   const existingContacts = await prisma.contact.findMany({
     where: { ownerId: viewerUserId },
@@ -161,19 +149,10 @@ export async function searchStoredDirectory(
     take: 50,
   });
 
-  return users.map((user) =>
-    toDirectoryUser(viewerUserId, user, {
-      onlineUserIds,
-      addedContactIds,
-    })
-  );
+  return users.map((user) => toDirectoryUser(user, { addedContactIds }));
 }
 
-export async function addStoredContact(
-  viewerUserId: string,
-  targetUserId: string,
-  onlineUserIds: Set<string>
-) {
+export async function addStoredContact(viewerUserId: string, targetUserId: string) {
   const targetUser = await prisma.user.findUnique({
     where: { id: targetUserId },
   });
@@ -196,8 +175,7 @@ export async function addStoredContact(
     },
   });
 
-  return toDirectoryUser(viewerUserId, targetUser, {
-    onlineUserIds,
+  return toDirectoryUser(targetUser, {
     addedContactIds: new Set([targetUserId]),
   });
 }

@@ -43,9 +43,6 @@ type IceCandidatePayload = {
 
 type PublicUser = {
   id: string;
-  name: string;
-  email?: string;
-  avatarUrl?: string | null;
   username: string;
 };
 
@@ -187,10 +184,6 @@ function emitToUser(userId: string, event: string, payload: unknown) {
 
 function getOtherUserId(call: CallRecord, currentUserId: string) {
   return currentUserId === call.fromUserId ? call.toUserId : call.fromUserId;
-}
-
-function listOnlineUsers() {
-  return Array.from(users.values()).map(({ user }) => user);
 }
 
 function isExpoPushToken(token: string) {
@@ -347,20 +340,25 @@ io.on('connection', (socket) => {
       return;
     }
 
+    const username = buildFallbackUsername({
+      username: payload.username,
+      name: payload.name,
+      email: payload.email,
+      id: payload.userId,
+    });
+
     const nextUser: PublicUser = {
+      id: payload.userId,
+      username,
+    };
+
+    await upsertPublicUser({
       id: payload.userId,
       name: payload.name,
       email: payload.email,
       avatarUrl: payload.avatarUrl,
-      username: buildFallbackUsername({
-        username: payload.username,
-        name: payload.name,
-        email: payload.email,
-        id: payload.userId,
-      }),
-    };
-
-    await upsertPublicUser(nextUser);
+      username,
+    });
     users.set(payload.userId, {
       socketId: socket.id,
       user: nextUser,
@@ -368,12 +366,7 @@ io.on('connection', (socket) => {
     socket.data.userId = payload.userId;
     socket.data.name = payload.name;
 
-    ack?.({ ok: true, socketId: socket.id, users: listOnlineUsers() });
-
-    io.emit('presence:update', {
-      user: nextUser,
-      isOnline: true,
-    });
+    ack?.({ ok: true, socketId: socket.id });
 
     const deliveredIncomingCallIds = socket.data.deliveredIncomingCallIds as Set<string>;
     const pendingIncomingCalls = getPendingIncomingCallsForUser(payload.userId);
@@ -418,13 +411,6 @@ io.on('connection', (socket) => {
     }
   );
 
-  socket.on('users:list', (ack?: (response: unknown) => void) => {
-    ack?.({
-      ok: true,
-      users: listOnlineUsers(),
-    });
-  });
-
   socket.on('calls:list', async (ack?: (response: unknown) => void) => {
     const currentUserId = socket.data.userId as string | undefined;
 
@@ -449,7 +435,7 @@ io.on('connection', (socket) => {
 
     ack?.({
       ok: true,
-      contacts: await listStoredContacts(currentUserId, new Set(users.keys())),
+      contacts: await listStoredContacts(currentUserId),
     });
   });
 
@@ -465,11 +451,7 @@ io.on('connection', (socket) => {
 
       ack?.({
         ok: true,
-        users: await searchStoredDirectory(
-          currentUserId,
-          payload?.query ?? '',
-          new Set(users.keys())
-        ),
+        users: await searchStoredDirectory(currentUserId, payload?.query ?? ''),
       });
     }
   );
@@ -494,11 +476,7 @@ io.on('connection', (socket) => {
         return;
       }
 
-      const targetUser = await addStoredContact(
-        currentUserId,
-        payload.targetUserId,
-        new Set(users.keys())
-      );
+      const targetUser = await addStoredContact(currentUserId, payload.targetUserId);
 
       if (!targetUser) {
         ack?.({ ok: false, error: 'User not found' });
@@ -611,8 +589,8 @@ io.on('connection', (socket) => {
     void sendPushNotifications(
       recipientTokens.map((token) => ({
         to: token,
-        title: payload.senderName,
-        body: text,
+        title: 'Wassup',
+        body: 'New message',
         sound: 'default',
         channelId: MESSAGE_NOTIFICATION_CHANNEL_ID,
         priority: 'high',
@@ -620,9 +598,7 @@ io.on('connection', (socket) => {
         data: {
           type: 'message',
           chatUserId: payload.senderId,
-          name: payload.senderName,
           username: sender?.username ?? payload.senderId,
-          email: sender?.email ?? '',
         },
       }))
     );
@@ -686,8 +662,8 @@ io.on('connection', (socket) => {
     void sendPushNotifications(
       recipientTokens.map((token) => ({
         to: token,
-        title: `${payload.fromUserName} is calling`,
-        body: payload.mode === 'video' ? 'Incoming video call on Wassup' : 'Incoming voice call on Wassup',
+        title: 'Wassup',
+        body: 'Incoming call',
         sound: 'default',
         channelId: CALL_NOTIFICATION_CHANNEL_ID,
         priority: 'high',
@@ -695,9 +671,7 @@ io.on('connection', (socket) => {
         data: {
           type: 'call',
           chatUserId: payload.fromUserId,
-          name: payload.fromUserName,
           username: caller?.username ?? payload.fromUserId,
-          email: caller?.email ?? '',
           callId: call.id,
           mode: payload.mode,
         },
@@ -826,7 +800,6 @@ io.on('connection', (socket) => {
     const userId = socket.data.userId as string | undefined;
 
     if (userId) {
-      const disconnectedUser = users.get(userId)?.user;
       users.delete(userId);
 
       for (const call of Array.from(calls.values())) {
@@ -848,15 +821,6 @@ io.on('connection', (socket) => {
           readyUsersByCall.get(call.id)?.delete(userId);
         }
       }
-
-      io.emit('presence:update', {
-        user: disconnectedUser ?? {
-          id: userId,
-          name: (socket.data.name as string) ?? userId,
-          username: userId,
-        },
-        isOnline: false,
-      });
     }
 
     console.log('disconnected', socket.id);

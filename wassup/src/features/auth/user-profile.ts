@@ -37,6 +37,6 @@ export function normalizeStoredUser(user: AppUser): AppUser {
 export function normalizePublicUser(user: PublicUser): PublicUser {
   return {
     ...user,
-    username: user.username || buildUsername(user),
+    username: user.username || buildUsername({ id: user.id }),
   };
 }
