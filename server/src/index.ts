@@ -10,6 +10,7 @@ import {
   createStoredMessage,
   getStoredChatMessages,
   hasStoredContact,
+  listStoredCallsForUser,
   listStoredContacts,
   persistCallRecord,
   searchStoredDirectory,
@@ -421,6 +422,20 @@ io.on('connection', (socket) => {
     ack?.({
       ok: true,
       users: listOnlineUsers(),
+    });
+  });
+
+  socket.on('calls:list', async (ack?: (response: unknown) => void) => {
+    const currentUserId = socket.data.userId as string | undefined;
+
+    if (!currentUserId) {
+      ack?.({ ok: false, error: 'Not authenticated' });
+      return;
+    }
+
+    ack?.({
+      ok: true,
+      calls: await listStoredCallsForUser(currentUserId),
     });
   });
 

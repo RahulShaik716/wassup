@@ -35,6 +35,19 @@ export type PersistedCallInput = {
   createdAt: string;
 };
 
+export type StoredCallLogItem = {
+  id: string;
+  fromUserId: string;
+  fromUserName: string;
+  toUserId: string;
+  toUserName: string;
+  mode: 'voice' | 'video';
+  status: 'ringing' | 'active' | 'rejected' | 'ended' | 'missed';
+  createdAt: string;
+  answeredAt?: string;
+  endedAt?: string;
+};
+
 function toStoredPublicUser(user: User): StoredPublicUser {
   return {
     id: user.id,
@@ -287,4 +300,27 @@ export async function updateStoredCallStatus(
     where: { id: callId },
     data,
   });
+}
+
+export async function listStoredCallsForUser(userId: string) {
+  const calls = await prisma.call.findMany({
+    where: {
+      OR: [{ fromUserId: userId }, { toUserId: userId }],
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 50,
+  });
+
+  return calls.map((call) => ({
+    id: call.id,
+    fromUserId: call.fromUserId,
+    fromUserName: call.fromUserName,
+    toUserId: call.toUserId,
+    toUserName: call.toUserName,
+    mode: call.mode as 'voice' | 'video',
+    status: call.status as 'ringing' | 'active' | 'rejected' | 'ended' | 'missed',
+    createdAt: call.createdAt.toISOString(),
+    answeredAt: call.answeredAt?.toISOString(),
+    endedAt: call.endedAt?.toISOString(),
+  }));
 }
