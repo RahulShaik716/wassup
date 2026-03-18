@@ -15,9 +15,6 @@ permissions:
 jobs:
   build-android:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: wassup
     env:
       CI: true
       EXPO_PUBLIC_SERVER_URL: ${{ vars.EXPO_PUBLIC_SERVER_URL }}
@@ -34,13 +31,26 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: wassup/package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            wassup/package-lock.json
 
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
+
+      - name: Detect app directory
+        run: |
+          if [ -f "wassup/package.json" ] && [ -d "wassup/android" ]; then
+            echo "APP_DIR=wassup" >> "$GITHUB_ENV"
+          elif [ -f "package.json" ] && [ -d "android" ]; then
+            echo "APP_DIR=." >> "$GITHUB_ENV"
+          else
+            echo "Could not find the Expo Android app directory."
+            exit 1
+          fi
 
       - name: Verify build environment
         run: |
@@ -50,25 +60,29 @@ jobs:
           fi
 
       - name: Install app dependencies
-        run: npm ci
+        run: |
+          cd "$APP_DIR"
+          npm ci
 
       - name: Build Android APKs
         run: |
-          chmod +x android/gradlew
-          cd android
+          cd "$APP_DIR/android"
+          chmod +x gradlew
           ./gradlew assembleRelease
           ./gradlew assembleDebug
 
       - name: Prepare APK artifacts
         run: |
-          cp android/app/build/outputs/apk/release/app-release.apk android/app/build/outputs/apk/release/wassup-debug-signed.apk
-          cp android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/wassup-debug.apk
+          cp "$APP_DIR/android/app/build/outputs/apk/release/app-release.apk" "$APP_DIR/android/app/build/outputs/apk/release/wassup-debug-signed.apk"
+          cp "$APP_DIR/android/app/build/outputs/apk/debug/app-debug.apk" "$APP_DIR/android/app/build/outputs/apk/debug/wassup-debug.apk"
 
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4
         with:
           name: wassup-android-apks
           path: |
+            android/app/build/outputs/apk/release/wassup-debug-signed.apk
+            android/app/build/outputs/apk/debug/wassup-debug.apk
             wassup/android/app/build/outputs/apk/release/wassup-debug-signed.apk
             wassup/android/app/build/outputs/apk/debug/wassup-debug.apk
 
@@ -84,6 +98,6 @@ jobs:
             gh release create "$release_tag" --title "$release_title" --notes "$release_notes"
 
           gh release upload "$release_tag" \
-            android/app/build/outputs/apk/release/wassup-debug-signed.apk#wassup-debug-signed.apk \
-            android/app/build/outputs/apk/debug/wassup-debug.apk#wassup-debug.apk \
+            "$APP_DIR/android/app/build/outputs/apk/release/wassup-debug-signed.apk"#wassup-debug-signed.apk \
+            "$APP_DIR/android/app/build/outputs/apk/debug/wassup-debug.apk"#wassup-debug.apk \
             --clobber
