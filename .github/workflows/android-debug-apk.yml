@@ -42,6 +42,11 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: gradle
+          cache-dependency-path: |
+            wassup/android/**/*.gradle
+            wassup/android/**/*.gradle.kts
+            wassup/android/gradle/wrapper/gradle-wrapper.properties
+            wassup/android/gradle/libs.versions.toml
 
       - name: Verify build environment
         run: |
