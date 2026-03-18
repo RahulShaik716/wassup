@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   FlatList,
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  SafeAreaView,
   Text,
   TextInput,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/src/components/common/Avatar';
 import { useSession } from '@/src/features/auth/session-context';
@@ -30,20 +31,20 @@ function formatMessageTime(value: string) {
 export default function ChatDetailScreen() {
   const params = useLocalSearchParams<{
     chatId: string;
-    email?: string;
     name?: string;
+    username?: string;
   }>();
   const { startCall } = useCall();
   const { user } = useSession();
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState('');
-  const [status, setStatus] = useState(socket.connected ? 'Connected' : 'Connecting');
+  const [status, setStatus] = useState(socket.connected ? 'Online now' : 'Connecting...');
 
   const otherUser = {
     id: params.chatId,
-    name: params.name || params.chatId,
-    email: params.email,
+    name: params.name || params.username || params.chatId,
+    username: params.username || params.chatId,
   };
 
   const roomId = useMemo(() => {
@@ -67,26 +68,33 @@ export default function ChatDetailScreen() {
         name: currentUser.name,
         email: currentUser.email,
         avatarUrl: currentUser.avatarUrl,
+        username: currentUser.username,
       });
 
       socket.emit(
         'chat:join',
         { chatId: roomId },
-        (response: { ok: boolean; messages?: ChatMessage[] }) => {
+        (response: { ok: boolean; messages?: ChatMessage[]; error?: string }) => {
           if (response?.ok && response.messages) {
             setMessages(response.messages);
+            return;
+          }
+
+          if (!response?.ok) {
+            Alert.alert('Unable to open chat', response?.error ?? 'Please try again.');
+            router.back();
           }
         }
       );
     }
 
     function handleConnect() {
-      setStatus('Connected');
+      setStatus('Online now');
       joinRoom();
     }
 
     function handleDisconnect() {
-      setStatus('Disconnected');
+      setStatus('Connecting...');
     }
 
     function handleChatMessage(message: ChatMessage) {
@@ -102,7 +110,7 @@ export default function ChatDetailScreen() {
     if (socket.connected) {
       handleConnect();
     } else {
-      setStatus('Connecting');
+      setStatus('Connecting...');
       socket.connect();
     }
 
@@ -127,91 +135,110 @@ export default function ChatDetailScreen() {
         chatId: roomId,
         text,
         senderId: user.id,
-        senderName: user.name,
+        senderName: user.username,
       },
-      (response: { ok: boolean }) => {
+      (response: { ok: boolean; error?: string }) => {
         if (response?.ok) {
           setDraft('');
+          return;
         }
+
+        Alert.alert('Unable to send message', response?.error ?? 'Please try again.');
       }
     );
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }}>
+    <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: palette.background }}>
       <KeyboardAvoidingView
         behavior={Platform.select({ ios: 'padding', android: undefined })}
         style={{ flex: 1 }}>
         <View style={{ flex: 1, paddingHorizontal: spacing.md, paddingBottom: spacing.md }}>
           <View
             style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: spacing.md,
               padding: spacing.md,
               marginTop: spacing.sm,
               borderRadius: 24,
               borderWidth: 1,
               borderColor: palette.border,
               backgroundColor: palette.surface,
+              gap: spacing.md,
             }}>
-            <Pressable
-              onPress={() => router.back()}
+            <View
               style={{
-                width: 40,
-                height: 40,
+                flexDirection: 'row',
                 alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: 14,
-                backgroundColor: palette.surfaceMuted,
+                gap: spacing.md,
               }}>
-              <Ionicons color={palette.text} name="chevron-back" size={20} />
-            </Pressable>
-            <Avatar name={otherUser.name} size={54} />
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: palette.text, fontSize: 20, fontWeight: '800' }}>
-                {otherUser.name}
-              </Text>
-              <Text style={{ color: palette.mutedText, marginTop: 2 }}>
-                {otherUser.email || status}
-              </Text>
+              <Pressable
+                onPress={() => router.back()}
+                style={{
+                  width: 40,
+                  height: 40,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: 14,
+                  backgroundColor: palette.surfaceMuted,
+                }}>
+                <Ionicons color={palette.text} name="chevron-back" size={20} />
+              </Pressable>
+              <Avatar name={otherUser.username} size={54} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: palette.text, fontSize: 20, fontWeight: '800' }}>
+                  @{otherUser.username}
+                </Text>
+                <Text style={{ color: palette.mutedText, marginTop: 2 }}>
+                  {status}
+                </Text>
+              </View>
             </View>
-            <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+
+            <View
+              style={{
+                flexDirection: 'row',
+                gap: spacing.sm,
+              }}>
               <Pressable
                 onPress={() =>
                   startCall({
                     toUserId: otherUser.id,
-                    toUserName: otherUser.name,
+                    toUserName: otherUser.username,
                     mode: 'voice',
                   })
                 }
                 style={{
-                  width: 42,
-                  height: 42,
+                  flex: 1,
+                  minHeight: 48,
                   alignItems: 'center',
                   justifyContent: 'center',
+                  flexDirection: 'row',
+                  gap: spacing.xs,
                   borderRadius: 16,
                   backgroundColor: palette.accentMuted,
                 }}>
                 <Ionicons color={palette.accentDark} name="call-outline" size={20} />
+                <Text style={{ color: palette.accentDark, fontWeight: '700' }}>Voice call</Text>
               </Pressable>
               <Pressable
                 onPress={() =>
                   startCall({
                     toUserId: otherUser.id,
-                    toUserName: otherUser.name,
+                    toUserName: otherUser.username,
                     mode: 'video',
                   })
                 }
                 style={{
-                  width: 42,
-                  height: 42,
+                  flex: 1,
+                  minHeight: 48,
                   alignItems: 'center',
                   justifyContent: 'center',
+                  flexDirection: 'row',
+                  gap: spacing.xs,
                   borderRadius: 16,
                   backgroundColor: palette.accentMuted,
                 }}>
                 <Ionicons color={palette.accentDark} name="videocam-outline" size={20} />
+                <Text style={{ color: palette.accentDark, fontWeight: '700' }}>Video call</Text>
               </Pressable>
             </View>
           </View>
@@ -267,7 +294,7 @@ export default function ChatDetailScreen() {
                   Start the conversation
                 </Text>
                 <Text style={{ color: palette.mutedText, lineHeight: 22, marginTop: spacing.sm }}>
-                  Messages will stay in memory on the server for now. Persisting them comes next.
+                  Say hi and keep the chat going.
                 </Text>
               </View>
             }

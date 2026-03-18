@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "363859976692",
+    "project_id": "wassup-c6ac1",
+    "storage_bucket": "wassup-c6ac1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:363859976692:android:73400d4a3b3673fc9499a1",
+        "android_client_info": {
+          "package_name": "com.dirtycoder716.wassup"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAhGzklWEnqbQYtH9INQldEgiltzbmeRVU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

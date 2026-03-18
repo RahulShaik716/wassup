@@ -1,11 +1,27 @@
 import { router } from 'expo-router';
 import { Alert, Modal, Pressable, Text, View } from 'react-native';
-import { createContext, useContext, useEffect, useState, type PropsWithChildren } from 'react';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type PropsWithChildren,
+} from 'react';
 
 import { Avatar } from '@/src/components/common/Avatar';
 import { useSession } from '@/src/features/auth/session-context';
+import {
+  playIncomingCallRingtone,
+  playMessageTone,
+  startOutgoingRingback,
+  stopAllNotificationSounds,
+  stopIncomingCallRingtone,
+  stopOutgoingRingback,
+} from '@/src/lib/notification-sounds';
 import { socket } from '@/src/lib/socket';
 import { palette, spacing } from '@/src/theme';
+import type { ChatMessage } from '@/src/types/chat';
 import type { CallMode, CallPayload, CallState } from '@/src/types/call';
 
 type CallContextValue = {
@@ -26,11 +42,22 @@ export function CallProvider({ children }: PropsWithChildren) {
   const { user } = useSession();
   const [incomingCall, setIncomingCall] = useState<CallState | null>(null);
   const [currentCall, setCurrentCall] = useState<CallState | null>(null);
+  const incomingCallRef = useRef<CallState | null>(null);
+  const currentCallRef = useRef<CallState | null>(null);
+
+  useEffect(() => {
+    incomingCallRef.current = incomingCall;
+  }, [incomingCall]);
+
+  useEffect(() => {
+    currentCallRef.current = currentCall;
+  }, [currentCall]);
 
   useEffect(() => {
     if (!user) {
       setIncomingCall(null);
       setCurrentCall(null);
+      stopAllNotificationSounds();
       socket.disconnect();
       return;
     }
@@ -43,6 +70,7 @@ export function CallProvider({ children }: PropsWithChildren) {
         name: currentUser.name,
         email: currentUser.email,
         avatarUrl: currentUser.avatarUrl,
+        username: currentUser.username,
       });
     }
 
@@ -51,10 +79,20 @@ export function CallProvider({ children }: PropsWithChildren) {
     }
 
     function handleIncoming(call: CallPayload) {
+      if (
+        incomingCallRef.current?.id === call.id ||
+        currentCallRef.current?.id === call.id
+      ) {
+        return;
+      }
+
+      void playIncomingCallRingtone();
       setIncomingCall(withStatus(call, 'incoming'));
     }
 
     function handleAccepted(call: CallPayload) {
+      stopIncomingCallRingtone();
+      stopOutgoingRingback();
       setIncomingCall(null);
       setCurrentCall(withStatus(call, 'active'));
       router.replace(`/call/${call.id}`);
@@ -63,6 +101,8 @@ export function CallProvider({ children }: PropsWithChildren) {
     function handleRejected(call: CallPayload) {
       const otherName =
         currentUser.id === call.fromUserId ? call.toUserName : call.fromUserName;
+      stopIncomingCallRingtone();
+      stopOutgoingRingback();
       setIncomingCall((value) => (value?.id === call.id ? null : value));
       setCurrentCall((value) => (value?.id === call.id ? null : value));
       Alert.alert('Call rejected', `${otherName} rejected the call`);
@@ -72,10 +112,40 @@ export function CallProvider({ children }: PropsWithChildren) {
     function handleEnded(call: CallPayload) {
       const otherName =
         currentUser.id === call.fromUserId ? call.toUserName : call.fromUserName;
+      stopIncomingCallRingtone();
+      stopOutgoingRingback();
       setIncomingCall((value) => (value?.id === call.id ? null : value));
       setCurrentCall((value) => (value?.id === call.id ? null : value));
       Alert.alert('Call ended', `${otherName} ended the call`);
       router.replace('/chats');
+    }
+
+    function handleMissed(call: CallPayload) {
+      const otherName =
+        currentUser.id === call.fromUserId ? call.toUserName : call.fromUserName;
+      const message =
+        currentUser.id === call.fromUserId
+          ? `${otherName} did not answer`
+          : `Missed ${call.mode} call from ${otherName}`;
+
+      stopIncomingCallRingtone();
+      stopOutgoingRingback();
+      setIncomingCall((value) => (value?.id === call.id ? null : value));
+      setCurrentCall((value) => (value?.id === call.id ? null : value));
+      Alert.alert('Call missed', message);
+      router.replace('/chats');
+    }
+
+    function handleChatMessage(message: ChatMessage) {
+      if (message.senderId === currentUser.id) {
+        return;
+      }
+
+      if (currentCallRef.current) {
+        return;
+      }
+
+      void playMessageTone();
     }
 
     socket.on('connect', handleConnect);
@@ -83,6 +153,8 @@ export function CallProvider({ children }: PropsWithChildren) {
     socket.on('call:accepted', handleAccepted);
     socket.on('call:rejected', handleRejected);
     socket.on('call:ended', handleEnded);
+    socket.on('call:missed', handleMissed);
+    socket.on('chat:message', handleChatMessage);
 
     if (socket.connected) {
       handleConnect();
@@ -96,6 +168,9 @@ export function CallProvider({ children }: PropsWithChildren) {
       socket.off('call:accepted', handleAccepted);
       socket.off('call:rejected', handleRejected);
       socket.off('call:ended', handleEnded);
+      socket.off('call:missed', handleMissed);
+      socket.off('chat:message', handleChatMessage);
+      stopAllNotificationSounds();
     };
   }, [user]);
 
@@ -106,7 +181,7 @@ export function CallProvider({ children }: PropsWithChildren) {
         'call:invite',
         {
           fromUserId: user.id,
-          fromUserName: user.name,
+          fromUserName: user.username,
           toUserId: input.toUserId,
           toUserName: input.toUserName,
           mode: input.mode,
@@ -118,6 +193,7 @@ export function CallProvider({ children }: PropsWithChildren) {
           }
 
           const nextCall = withStatus(response.call, 'ringing');
+          startOutgoingRingback();
           setCurrentCall(nextCall);
           router.push(`/call/${nextCall.id}`);
         }
@@ -127,6 +203,7 @@ export function CallProvider({ children }: PropsWithChildren) {
     function acceptIncomingCall() {
       if (!incomingCall) return;
 
+      stopIncomingCallRingtone();
       socket.emit(
         'call:accept',
         { callId: incomingCall.id },
@@ -143,6 +220,7 @@ export function CallProvider({ children }: PropsWithChildren) {
     function rejectIncomingCall() {
       if (!incomingCall) return;
 
+      stopIncomingCallRingtone();
       socket.emit(
         'call:reject',
         { callId: incomingCall.id },
@@ -159,6 +237,7 @@ export function CallProvider({ children }: PropsWithChildren) {
     function endCurrentCall() {
       if (!currentCall) return;
 
+      stopAllNotificationSounds();
       socket.emit('call:end', { callId: currentCall.id });
     }
 
@@ -196,7 +275,7 @@ export function CallProvider({ children }: PropsWithChildren) {
               INCOMING CALL
             </Text>
             <View style={{ alignItems: 'center', marginTop: spacing.lg, marginBottom: spacing.lg }}>
-              <Avatar name={incomingCall?.fromUserName || 'Caller'} size={88} />
+              <Avatar name={incomingCall?.fromUserName || 'caller'} size={88} />
               <Text
                 style={{
                   color: palette.text,
@@ -204,7 +283,7 @@ export function CallProvider({ children }: PropsWithChildren) {
                   fontWeight: '800',
                   marginTop: spacing.md,
                 }}>
-                {incomingCall?.fromUserName}
+                @{incomingCall?.fromUserName}
               </Text>
               <Text style={{ color: palette.mutedText, marginTop: spacing.xs }}>
                 {incomingCall?.mode === 'video' ? 'Video call' : 'Voice call'}

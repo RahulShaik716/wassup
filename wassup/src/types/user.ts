@@ -6,6 +6,7 @@ export type AppUser = {
   email?: string;
   avatarUrl?: string | null;
   provider: AuthProvider;
+  username: string;
 };
 
 export type PublicUser = Omit<AppUser, 'provider'>;

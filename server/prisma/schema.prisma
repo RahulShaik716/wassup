@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum CallMode {
+  voice
+  video
+}
+
+enum CallStatus {
+  ringing
+  active
+  rejected
+  ended
+  missed
+}
+
+model User {
+  id           String    @id
+  name         String
+  email        String?
+  avatarUrl    String?
+  username     String    @unique
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  contacts     Contact[] @relation("UserContacts")
+  contactedBy  Contact[] @relation("UserContactedBy")
+  sentMessages Message[] @relation("MessageSender")
+  outgoingCalls Call[]   @relation("OutgoingCalls")
+  incomingCalls Call[]   @relation("IncomingCalls")
+}
+
+model Contact {
+  ownerId   String
+  contactId String
+  createdAt DateTime @default(now())
+  owner     User     @relation("UserContacts", fields: [ownerId], references: [id], onDelete: Cascade)
+  contact   User     @relation("UserContactedBy", fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@id([ownerId, contactId])
+  @@index([contactId])
+}
+
+model Message {
+  id         String   @id
+  chatId     String
+  text       String
+  senderId   String
+  senderName String
+  createdAt  DateTime @default(now())
+  sender     User     @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([chatId, createdAt])
+  @@index([senderId])
+}
+
+model Call {
+  id           String     @id
+  fromUserId   String
+  fromUserName String
+  toUserId     String
+  toUserName   String
+  mode         CallMode
+  status       CallStatus
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  answeredAt   DateTime?
+  endedAt      DateTime?
+  fromUser     User       @relation("OutgoingCalls", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser       User       @relation("IncomingCalls", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  @@index([fromUserId, createdAt])
+  @@index([toUserId, createdAt])
+  @@index([status, createdAt])
+}

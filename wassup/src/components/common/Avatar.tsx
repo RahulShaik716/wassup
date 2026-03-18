@@ -3,12 +3,14 @@ import { Text, View } from 'react-native';
 import { palette } from '@/src/theme';
 
 type AvatarProps = {
-  name: string;
+  name?: string | null;
   size?: number;
 };
 
 export function Avatar({ name, size = 48 }: AvatarProps) {
-  const initials = name
+  const safeName = (name ?? '').trim();
+
+  const initials = safeName
     .trim()
     .split(/\s+/)
     .slice(0, 2)

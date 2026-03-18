@@ -3,6 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import { createContext, useContext, useEffect, useState, type PropsWithChildren } from 'react';
 
 import { configureGoogleSignIn } from '@/src/features/auth/google-auth';
+import { buildUsername, normalizeStoredUser } from '@/src/features/auth/user-profile';
 import type { AppUser } from '@/src/types/user';
 
 const SESSION_STORAGE_KEY = 'wassup.session';
@@ -42,7 +43,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
         const storedUser = await SecureStore.getItemAsync(SESSION_STORAGE_KEY);
 
         if (storedUser && isMounted) {
-          setUser(JSON.parse(storedUser) as AppUser);
+          setUser(normalizeStoredUser(JSON.parse(storedUser) as AppUser));
         }
       } finally {
         if (isMounted) {
@@ -70,10 +71,17 @@ export function SessionProvider({ children }: PropsWithChildren) {
       throw new Error('Enter a display name to continue.');
     }
 
+    const guestId = buildGuestId(trimmedName);
+
     await persistSession({
-      id: buildGuestId(trimmedName),
+      id: guestId,
       name: trimmedName,
       provider: 'guest',
+      username: buildUsername({
+        id: guestId,
+        name: trimmedName,
+        provider: 'guest',
+      }),
     });
   }
 
@@ -98,6 +106,12 @@ export function SessionProvider({ children }: PropsWithChildren) {
         email: googleUser.email,
         avatarUrl: googleUser.photo,
         provider: 'google',
+        username: buildUsername({
+          email: googleUser.email,
+          id: googleUser.id,
+          name: googleUser.name,
+          provider: 'google',
+        }),
       });
     } finally {
       setIsSigningIn(false);

@@ -1,4 +1,5 @@
-import { Pressable, SafeAreaView, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/src/components/common/Avatar';
 import { useSession } from '@/src/features/auth/session-context';
@@ -8,7 +9,7 @@ export default function SettingsScreen() {
   const { signOut, user } = useSession();
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }}>
+    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: palette.background }}>
       <View style={{ flex: 1, padding: spacing.lg, gap: spacing.md }}>
         <View
           style={{
@@ -19,7 +20,7 @@ export default function SettingsScreen() {
             backgroundColor: palette.surface,
           }}>
           <Text style={{ color: palette.mutedText, fontSize: 12, fontWeight: '700' }}>
-            ACCOUNT
+            PROFILE
           </Text>
           <Text
             style={{
@@ -28,7 +29,7 @@ export default function SettingsScreen() {
               fontWeight: '800',
               marginTop: spacing.xs,
             }}>
-            Settings
+            You
           </Text>
         </View>
 
@@ -43,16 +44,13 @@ export default function SettingsScreen() {
             borderColor: palette.border,
             backgroundColor: palette.surface,
           }}>
-          <Avatar name={user?.name || 'You'} size={64} />
+          <Avatar name={user?.username || 'you'} size={64} />
           <View style={{ flex: 1 }}>
             <Text style={{ color: palette.text, fontSize: 20, fontWeight: '700' }}>
-              {user?.name}
+              @{user?.username}
             </Text>
             <Text style={{ color: palette.mutedText, marginTop: 4 }}>
-              {user?.email || 'Guest account'}
-            </Text>
-            <Text style={{ color: palette.mutedText, marginTop: 4, fontSize: 12 }}>
-              Provider: {user?.provider}
+              Your Wassup username
             </Text>
           </View>
         </View>
@@ -66,11 +64,10 @@ export default function SettingsScreen() {
             backgroundColor: palette.surface,
           }}>
           <Text style={{ color: palette.text, fontSize: 16, fontWeight: '700' }}>
-            Storage plan
+            Notifications
           </Text>
           <Text style={{ color: palette.mutedText, lineHeight: 22, marginTop: spacing.sm }}>
-            Keep the mobile UI separate from persistence. The next server step is storing messages
-            and call logs in a hosted database instead of memory.
+            Message alerts and incoming call notifications are enabled on this device.
           </Text>
         </View>
 

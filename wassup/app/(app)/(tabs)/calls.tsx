@@ -1,4 +1,5 @@
-import { SafeAreaView, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useCall } from '@/src/features/call/call-context';
 import { palette, spacing } from '@/src/theme';
@@ -7,7 +8,7 @@ export default function CallsScreen() {
   const { currentCall } = useCall();
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }}>
+    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: palette.background }}>
       <View style={{ flex: 1, padding: spacing.lg, gap: spacing.md }}>
         <View
           style={{
@@ -18,7 +19,7 @@ export default function CallsScreen() {
             backgroundColor: palette.surface,
           }}>
           <Text style={{ color: palette.mutedText, fontSize: 12, fontWeight: '700' }}>
-            CALL CENTER
+            CALLS
           </Text>
           <Text
             style={{
@@ -30,8 +31,7 @@ export default function CallsScreen() {
             Calls
           </Text>
           <Text style={{ color: palette.mutedText, marginTop: spacing.sm, lineHeight: 22 }}>
-            Call history is the next persistence feature. For now this screen tracks the active call
-            state.
+            Keep track of the calls happening right now.
           </Text>
         </View>
 
@@ -44,13 +44,13 @@ export default function CallsScreen() {
             backgroundColor: currentCall ? palette.accentMuted : palette.surface,
           }}>
           <Text style={{ color: palette.mutedText, fontSize: 12, fontWeight: '700' }}>
-            CURRENT STATE
+            STATUS
           </Text>
           <Text style={{ color: palette.text, fontSize: 20, fontWeight: '700', marginTop: spacing.sm }}>
-            {currentCall ? `${currentCall.mode} call` : 'No live call'}
+            {currentCall ? `${currentCall.mode === 'video' ? 'Video' : 'Voice'} call live` : 'No active call'}
           </Text>
           <Text style={{ color: palette.mutedText, marginTop: spacing.xs }}>
-            {currentCall ? `Status: ${currentCall.status}` : 'Start a call from any chat thread.'}
+            {currentCall ? 'Open the chat to manage the current call.' : 'Start a call from any chat.'}
           </Text>
         </View>
       </View>

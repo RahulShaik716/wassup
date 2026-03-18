@@ -3,11 +3,11 @@ import {
   ActivityIndicator,
   Alert,
   Pressable,
-  SafeAreaView,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
   getGoogleSetupMessage,
@@ -44,7 +44,7 @@ export default function SignInScreen() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }}>
+    <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: palette.background }}>
       <View style={{ flex: 1, paddingHorizontal: spacing.lg, paddingVertical: spacing.xl }}>
         <View
           style={{
@@ -88,8 +88,7 @@ export default function SignInScreen() {
               lineHeight: 24,
               marginBottom: spacing.xl,
             }}>
-            Sign in with Google to appear in the live user list, or use guest mode for quick local
-            testing.
+            Chat, voice call, and video call with the people who are online right now.
           </Text>
 
           <Pressable
@@ -121,7 +120,7 @@ export default function SignInScreen() {
               marginBottom: spacing.lg,
             }}>
             {hasGoogleSignInConfig()
-              ? 'Google auth is ready once the native dev build is rebuilt.'
+              ? 'Use Google for the full experience.'
               : getGoogleSetupMessage()}
           </Text>
 
@@ -140,10 +139,10 @@ export default function SignInScreen() {
                 fontWeight: '700',
                 marginBottom: spacing.sm,
               }}>
-              Guest mode
+              Continue without Google
             </Text>
             <Text style={{ color: palette.mutedText, marginBottom: spacing.md }}>
-              Useful while Google OAuth is still being configured.
+              Pick a display name and get started right away.
             </Text>
             <TextInput
               autoCapitalize="words"
